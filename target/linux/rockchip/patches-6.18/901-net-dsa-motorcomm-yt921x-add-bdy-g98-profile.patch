@@ -1,0 +1,187 @@
+From 97987fcca61130ea3afcef4e01eb3b2827c0aa87 Mon Sep 17 00:00:00 2001
+From: G98 LEDE maintainers <lede@bdy-g98.local>
+Date: Mon, 24 Aug 2026 21:56:02 +0800
+Subject: [PATCH] net: dsa: yt921x: add BDY G98 profile
+
+Add a board profile for the dual YT9215 switches on BDY G98.
+
+Program the required serial, remap and LED registers.
+
+Signed-off-by: G98 LEDE maintainers <lede@bdy-g98.local>
+---
+ .../bindings/net/dsa/motorcomm,yt921x.yaml    |  6 +-
+ drivers/net/dsa/yt921x.c                      | 62 +++++++++++++++++--
+ drivers/net/dsa/yt921x.h                      | 28 +++++++++
+ 3 files changed, 91 insertions(+), 5 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/net/dsa/motorcomm,yt921x.yaml b/Documentation/devicetree/bindings/net/dsa/motorcomm,yt921x.yaml
+index 24da725..7347386 100644
+--- a/Documentation/devicetree/bindings/net/dsa/motorcomm,yt921x.yaml
++++ b/Documentation/devicetree/bindings/net/dsa/motorcomm,yt921x.yaml
+@@ -23,7 +23,11 @@ description: |
+ 
+ properties:
+   compatible:
+-    const: motorcomm,yt9215
++    oneOf:
++      - const: motorcomm,yt9215
++      - items:
++          - const: motorcomm,yt9215-g98
++          - const: motorcomm,yt9215
+ 
+   reg:
+     enum: [0x0, 0x1d]
+diff --git a/drivers/net/dsa/yt921x.c b/drivers/net/dsa/yt921x.c
+index 10c3b82..98520fc 100644
+--- a/drivers/net/dsa/yt921x.c
++++ b/drivers/net/dsa/yt921x.c
+@@ -4757,11 +4757,39 @@ static int __maybe_unused yt921x_chip_setup_qos(struct yt921x_priv *priv)
+ 	return 0;
+ }
+ 
++static int yt921x_apply_g98_board_profile(struct yt921x_priv *priv)
++{
++	int res;
++
++	if (!priv->g98_profile)
++		return 0;
++
++	res = yt921x_reg_write(priv, YT921X_G98_SERIAL_CTRL,
++			       YT921X_G98_SERIAL_CTRL_VALUE);
++	if (res)
++		return res;
++	res = yt921x_reg_write(priv, YT921X_G98_REMAP_CTRL,
++			       YT921X_G98_REMAP_CTRL_VALUE);
++	if (res)
++		return res;
++	res = yt921x_reg_write(priv, YT921X_G98_CTRL_NET0,
++			       YT921X_G98_CTRL_NET_VALUE);
++	if (res)
++		return res;
++
++	return yt921x_reg_write(priv, YT921X_G98_CTRL_NET1,
++				YT921X_G98_CTRL_NET_VALUE);
++}
++
+ static int yt921x_chip_setup(struct yt921x_priv *priv)
+ {
+ 	u32 ctrl;
+ 	int res;
+ 
++	res = yt921x_apply_g98_board_profile(priv);
++	if (res)
++		return res;
++
+ 	ctrl = YT921X_FUNC_MIB | YT921X_FUNC_ACL | YT921X_FUNC_METER;
+ 	res = yt921x_reg_set_bits(priv, YT921X_FUNC, ctrl);
+ 	if (res)
+@@ -4799,6 +4827,29 @@ static int yt921x_chip_setup(struct yt921x_priv *priv)
+ 	return 0;
+ }
+ 
++static int yt921x_g98_led_profile_setup(struct yt921x_priv *priv)
++{
++	struct dsa_port *dp;
++	int res;
++
++	if (!priv->g98_profile)
++		return 0;
++
++	dsa_switch_for_each_user_port(dp, &priv->ds) {
++		res = yt921x_reg_write(priv, YT921X_LED_CTRL_0(dp->index),
++				       YT921X_G98_LED0);
++		if (res)
++			return res;
++
++		res = yt921x_reg_write(priv, YT921X_LED_CTRL_1(dp->index),
++				       YT921X_G98_LED1);
++		if (res)
++			return res;
++	}
++
++	return 0;
++}
++
+ static int yt921x_dsa_setup(struct dsa_switch *ds)
+ {
+ 	struct yt921x_priv *priv = to_yt921x_priv(ds);
+@@ -4840,12 +4891,11 @@ static int yt921x_dsa_setup(struct dsa_switch *ds)
+ 
+ 	mutex_lock(&priv->reg_lock);
+ 	res = yt921x_chip_setup(priv);
++	if (!res)
++		res = yt921x_g98_led_profile_setup(priv);
+ 	mutex_unlock(&priv->reg_lock);
+ 
+-	if (res)
+-		return res;
+-
+-	return 0;
++	return res;
+ }
+ 
+ static const struct phylink_mac_ops yt921x_phylink_mac_ops = {
+@@ -4979,6 +5029,9 @@ static int yt921x_mdio_probe(struct mdio_device *mdiodev)
+ 	if (!priv)
+ 		return -ENOMEM;
+ 
++	priv->g98_profile = of_device_is_compatible(dev->of_node,
++						    "motorcomm,yt9215-g98");
++
+ 	mdio = devm_kzalloc(dev, sizeof(*mdio), GFP_KERNEL);
+ 	if (!mdio)
+ 		return -ENOMEM;
+@@ -5027,6 +5080,7 @@ static int yt921x_mdio_probe(struct mdio_device *mdiodev)
+ }
+ 
+ static const struct of_device_id yt921x_of_match[] = {
++	{ .compatible = "motorcomm,yt9215-g98" },
+ 	{ .compatible = "motorcomm,yt9215" },
+ 	{}
+ };
+diff --git a/drivers/net/dsa/yt921x.h b/drivers/net/dsa/yt921x.h
+index 3f8fdce..eba8803 100644
+--- a/drivers/net/dsa/yt921x.h
++++ b/drivers/net/dsa/yt921x.h
+@@ -232,6 +232,33 @@
+ #define  YT921X_MIB_DATA_RX_OAM			0xa8
+ #define  YT921X_MIB_DATA_TX_OAM			0xac
+ 
++/* Vendor-derived electrical profile used by the BDY G98 board. */
++#define YT921X_G98_REMAP_CTRL		0x080358
++#define YT921X_G98_REMAP_CTRL_VALUE	0x00000200
++#define YT921X_G98_CTRL_NET0		0x0803a8
++#define YT921X_G98_CTRL_NET1		0x0803ac
++#define YT921X_G98_CTRL_NET_VALUE	0x1556db6d
++#define YT921X_G98_SERIAL_CTRL		0x1004d4
++#define YT921X_G98_SERIAL_CTRL_VALUE	0x00000000
++
++#define YT921X_LED_CTRL_0(port)		(0xd0004 + 4 * (port))
++#define YT921X_LED_CTRL_1(port)		(0xd0040 + 4 * (port))
++#define  YT921X_LED_10M_ON			BIT(4)
++#define  YT921X_LED_100M_ON			BIT(5)
++#define  YT921X_LED_1000M_ON			BIT(6)
++#define  YT921X_LED_RXACT_BLINK			BIT(9)
++#define  YT921X_LED_TXACT_BLINK			BIT(10)
++#define  YT921X_LED_ACT_BLINK_IND		BIT(13)
++#define  YT921X_LED_DISABLE_LINK_TRY		BIT(17)
++
++#define YT921X_G98_LED0		YT921X_LED_DISABLE_LINK_TRY
++#define YT921X_G98_LED1		(YT921X_LED_10M_ON | \
++				 YT921X_LED_100M_ON | \
++				 YT921X_LED_1000M_ON | \
++				 YT921X_LED_RXACT_BLINK | \
++				 YT921X_LED_TXACT_BLINK | \
++				 YT921X_LED_ACT_BLINK_IND)
++
+ #define YT921X_EDATA_CTRL		0xe0000
+ #define  YT921X_EDATA_CTRL_ADDR_M		GENMASK(15, 8)
+ #define   YT921X_EDATA_CTRL_ADDR(x)			FIELD_PREP(YT921X_EDATA_CTRL_ADDR_M, (x))
+@@ -975,6 +1002,7 @@ struct yt921x_priv {
+ 	struct dsa_switch ds;
+ 
+ 	const struct yt921x_info *info;
++	bool g98_profile;
+ 	unsigned int meter_slot_ns;
+ 	unsigned int port_shape_slot_ns;
+ 	/* cache of dsa_cpu_ports(ds) */
