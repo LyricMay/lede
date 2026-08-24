@@ -8,6 +8,10 @@
 name: OpenWrt-CI
 
 on:
+  push:
+    branches:
+      - g98-rk3588
+  workflow_dispatch:
   schedule:
     - cron: 0 20 * * *
 
