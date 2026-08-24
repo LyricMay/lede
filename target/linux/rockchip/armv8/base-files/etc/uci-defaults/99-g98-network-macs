@@ -1,0 +1,35 @@
+#!/bin/sh
+
+. /lib/functions.sh
+. /lib/functions/system.sh
+
+[ "$(board_name)" = "bdy,g98" ] || exit 0
+
+base_mac=$(jsonfilter -i /etc/board.json -e '@.system.label_macaddr')
+[ -n "$base_mac" ] || exit 0
+
+g98_set_device_mac()
+{
+	local section="$1"
+	local target="$2"
+	local mac="$3"
+	local name
+
+	config_get name "$section" name
+	[ "$name" = "$target" ] || return 0
+
+	uci_set network "$section" macaddr "$mac"
+}
+
+config_load network
+
+for port in 1 2 3 4 5 6 7 8 9 10; do
+	config_foreach g98_set_device_mac device "lan$port" \
+		"$(macaddr_add "$base_mac" "$((port - 1))")"
+done
+
+config_foreach g98_set_device_mac device br-lan \
+	"$(macaddr_add "$base_mac" 10)"
+uci_commit network
+
+exit 0

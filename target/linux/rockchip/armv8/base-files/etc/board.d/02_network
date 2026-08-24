@@ -68,6 +68,11 @@ rockchip_setup_interfaces()
 	friendlyarm,nanopi-r5s)
 		ucidef_set_interfaces_lan_wan 'eth1 eth2' 'eth0'
 		;;
+	bdy,g98)
+		ucidef_set_network_device_path lan1 'platform/a40800000.pcie/pci0002:20/0002:20:00.0/0002:21:00.0'
+		ucidef_set_network_device_path lan2 'platform/a40c00000.pcie/pci0003:30/0003:30:00.0/0003:31:00.0'
+		ucidef_set_interfaces_lan_wan 'lan1 lan3 lan4 lan5 lan6 lan7 lan8 lan9 lan10' 'lan2'
+		;;
 	lyt,t68m)
 		ucidef_set_network_device_path lan1 'platform/fe2a0000.ethernet'
 		ucidef_set_network_device_path lan2 'platform/fe010000.ethernet'
@@ -104,6 +109,31 @@ nanopi_r4s_get_mac()
 	fi
 
 	echo "$address"
+}
+
+g98_get_base_mac()
+{
+	local serial_file="/sys/firmware/devicetree/base/serial-number"
+	local serial hash mac
+
+	# Prefer immutable SoC identity; U-Boot's eth0 fallback is OTP-derived too.
+	[ ! -r "$serial_file" ] || serial=$(tr -d '\000' < "$serial_file")
+	if [ -n "$serial" ]; then
+		hash=$(printf '%s' "$serial" | sha256sum)
+	elif [ -r /sys/bus/nvmem/devices/rockchip-otp0/nvmem ]; then
+		hash=$(dd if=/sys/bus/nvmem/devices/rockchip-otp0/nvmem \
+			bs=1 count=16 2>/dev/null | sha256sum)
+	else
+		mac=$(cat /sys/class/net/eth0/address 2>/dev/null)
+		case "$mac" in
+			00:00:00:00:00:00|ff:ff:ff:ff:ff:ff|[13579bBdDfF][0-9a-fA-F]:*) return ;;
+			??:??:??:??:??:??) echo "$mac"; return ;;
+		esac
+		return
+	fi
+
+	mac=$(macaddr_canonicalize "$(printf '%s' "$hash" | dd bs=1 count=12 2>/dev/null)")
+	macaddr_unsetbit_mc "$(macaddr_setbit_la "$mac")"
 }
 
 rockchip_setup_macs()
@@ -153,6 +183,13 @@ rockchip_setup_macs()
 	friendlyarm,nanopi-r4se)
 		wan_mac=$(nanopi_r4s_get_mac wan)
 		lan_mac=$(nanopi_r4s_get_mac lan)
+		;;
+	bdy,g98)
+		label_mac=$(g98_get_base_mac)
+		if [ -n "$label_mac" ]; then
+			lan_mac="$label_mac"
+			wan_mac=$(macaddr_add "$label_mac" 1)
+		fi
 		;;
 	friendlyarm,nanopi-r3s|\
 	friendlyarm,nanopi-r5c|\

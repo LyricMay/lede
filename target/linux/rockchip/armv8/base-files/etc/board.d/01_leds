@@ -9,6 +9,9 @@ boardname="${board##*,}"
 board_config_update
 
 case $board in
+bdy,g98)
+	ucidef_set_led_netdev "net" "NET" "green:lan" "br-lan"
+	;;
 friendlyarm,nanopi-r2c|\
 friendlyarm,nanopi-r2c-plus|\
 friendlyarm,nanopi-r2s|\

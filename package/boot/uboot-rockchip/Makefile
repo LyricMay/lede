@@ -433,6 +433,14 @@ define U-Boot/generic-rk3588
     seewo_srcm3588-sw
 endef
 
+define U-Boot/bdy-g98-rk3588
+  $(U-Boot/rk3588/Default)
+  NAME:=BDY G98
+  SPI_IMAGE:=1
+  BUILD_DEVICES:= \
+    bdy_g98
+endef
+
 define U-Boot/nanopc-t6-rk3588
   $(U-Boot/rk3588/Default)
   NAME:=NanoPC T6
@@ -524,6 +532,7 @@ UBOOT_TARGETS := \
   generic-rk3576 \
   rock-4d-rk3576 \
   sige5-rk3576 \
+  bdy-g98-rk3588 \
   generic-rk3588 \
   nanopc-t6-rk3588 \
   orangepi-5-plus-rk3588 \
@@ -575,6 +584,9 @@ ifneq ($(USE_RKBIN),)
 else
 	$(CP) $(PKG_BUILD_DIR)/idbloader.img $(STAGING_DIR_IMAGE)/$(BUILD_VARIANT)-idbloader.img
 	$(CP) $(PKG_BUILD_DIR)/u-boot.itb $(STAGING_DIR_IMAGE)/$(BUILD_VARIANT)-u-boot.itb
+ifneq ($(SPI_IMAGE),)
+	$(CP) $(PKG_BUILD_DIR)/u-boot-rockchip-spi.bin $(STAGING_DIR_IMAGE)/$(BUILD_VARIANT)-spi.bin
+endif
 endif
 endef
 

@@ -794,3 +794,21 @@ $(call Device/widora_mangopi-m28)
   DEVICE_PACKAGES += kmod-i2c-gpio kmod-r8125
 endef
 TARGET_DEVICES += widora_mangopi-m28k-pro
+
+define Device/bdy_g98
+  DEVICE_VENDOR := BDY
+  DEVICE_MODEL := G98
+  SOC := rk3588
+  FILESYSTEMS := squashfs
+  DEVICE_ROOTFS_PARTSIZE := 2048
+  DEVICE_DTS := rk3588-bdy-g98
+  UBOOT_DEVICE_NAME := bdy-g98-rk3588
+  IMAGES := nvme.img.gz usb.img.gz emmc.img.gz
+  IMAGE/nvme.img.gz := boot-common | boot-script nvme | rootfs-disk-img | gzip | append-metadata
+  IMAGE/usb.img.gz := boot-common | boot-script usb | rootfs-disk-img 876d8f12-f833-b9bc-858d-4da99b8b5b00 | gzip | append-metadata
+  IMAGE/emmc.img.gz := boot-common | boot-script | pine64-img | gzip | append-metadata
+  ARTIFACTS := spi-boot.bin
+  ARTIFACT/spi-boot.bin := spi-boot
+  DEVICE_PACKAGES := kmod-ata-ahci-dwc kmod-dsa-yt921x kmod-drm-panthor kmod-drm-rocket kmod-r8169
+endef
+TARGET_DEVICES += bdy_g98

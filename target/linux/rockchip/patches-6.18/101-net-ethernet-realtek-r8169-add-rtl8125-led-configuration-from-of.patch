@@ -4,8 +4,8 @@ Date: Sat, 18 Mar 2023 23:05:16 +0800
 Subject: [PATCH] r8169: add LED configuration from OF
 
 ---
- drivers/net/ethernet/realtek/r8169_main.c | 19 +++++++++++++++++++
- 1 file changed, 19 insertions(+)
+ drivers/net/ethernet/realtek/r8169_main.c | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
 
 --- a/drivers/net/ethernet/realtek/r8169_main.c
 +++ b/drivers/net/ethernet/realtek/r8169_main.c
@@ -17,30 +17,28 @@ Subject: [PATCH] r8169: add LED configuration from OF
  #include <linux/if_vlan.h>
  #include <linux/in.h>
  #include <linux/io.h>
-@@ -239,6 +240,7 @@ enum rtl_registers {
- 	MAR0		= 8,	/* Multicast filter. */
- 	CounterAddrLow		= 0x10,
- 	CounterAddrHigh		= 0x14,
-+	CustomLED	= 0x18,
- 	TxDescStartAddrLow	= 0x20,
- 	TxDescStartAddrHigh	= 0x24,
- 	TxHDescStartAddrLow	= 0x28,
-@@ -5383,6 +5385,22 @@ static bool rtl_aspm_is_safe(struct rtl8
+@@ -5383,6 +5384,28 @@ static bool rtl_aspm_is_safe(struct rtl8
  	return false;
  }
  
 +static int rtl_led_configuration(struct rtl8169_private *tp)
 +{
-+	u32 led_data;
-+	int ret;
++	static const char * const properties[] = {
++		"r8125,led0", "r8125,led1", "r8125,led2", "r8125,led3",
++	};
++	u32 mode;
++	int i;
 +
-+	ret = of_property_read_u32(tp->pci_dev->dev.of_node,
-+				   "realtek,led-data", &led_data);
++	if (!rtl_is_8125(tp) || !tp->pci_dev->dev.of_node)
++		return 0;
 +
-+	if (ret)
-+		return ret;
++	for (i = 0; i < ARRAY_SIZE(properties); i++) {
++		if (of_property_read_u32(tp->pci_dev->dev.of_node,
++					 properties[i], &mode))
++			continue;
 +
-+	RTL_W16(tp, CustomLED, led_data);
++		rtl8125_set_led_mode(tp, i, mode & LEDSEL_MASK_8125);
++	}
 +
 +	return 0;
 +}

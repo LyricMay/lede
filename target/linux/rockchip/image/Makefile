@@ -3,7 +3,7 @@
 include $(TOPDIR)/rules.mk
 include $(INCLUDE_DIR)/image.mk
 
-DEVICE_VARS += UBOOT_DEVICE_NAME
+DEVICE_VARS += UBOOT_DEVICE_NAME DEVICE_ROOTFS_PARTSIZE
 
 define Build/Compile
 	$(CP) $(LINUX_DIR)/COPYING $(KDIR)/COPYING.linux
@@ -25,6 +25,19 @@ define Build/boot-script
 	mkimage -A arm -O linux -T script -C none -a 0 -e 0 -d $(if $(1),$(1),mmc).bootscript $@.boot/boot.scr
 endef
 
+define Build/rootfs-disk-img
+	# Disk image with a FAT boot partition and squashfs root partition.
+	GUID="$(if $(1),$(1),$(IMG_PART_DISKGUID))" PADDING=1 $(SCRIPT_DIR)/gen_image_generic.sh \
+		$@ \
+		$(CONFIG_TARGET_KERNEL_PARTSIZE) $@.boot \
+		$(if $(DEVICE_ROOTFS_PARTSIZE),$(DEVICE_ROOTFS_PARTSIZE),$(CONFIG_TARGET_ROOTFS_PARTSIZE)) $(IMAGE_ROOTFS) \
+		1024
+endef
+
+define Build/spi-boot
+	cp "$(STAGING_DIR_IMAGE)/$(UBOOT_DEVICE_NAME)-spi.bin" $@
+endef
+
 define Build/pine64-img
 	# Creates the final SD/eMMC images, 
 	# combining boot partition, root partition as well as the u-boot bootloader
@@ -37,7 +50,7 @@ define Build/pine64-img
 	PADDING=1 $(SCRIPT_DIR)/gen_image_generic.sh \
 		$@ \
 		$(CONFIG_TARGET_KERNEL_PARTSIZE) $@.boot \
-		$(CONFIG_TARGET_ROOTFS_PARTSIZE) $(IMAGE_ROOTFS) \
+		$(if $(DEVICE_ROOTFS_PARTSIZE),$(DEVICE_ROOTFS_PARTSIZE),$(CONFIG_TARGET_ROOTFS_PARTSIZE)) $(IMAGE_ROOTFS) \
 		32768
 
 	# Copy the idbloader and the u-boot image to the image at sector 0x40 and 0x4000

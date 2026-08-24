@@ -1,0 +1,33 @@
+From: G98 LEDE maintainers <lede@bdy-g98.local>
+Date: Mon, 24 Aug 2026 20:00:00 +0800
+Subject: [PATCH] phy: rockchip: usbdp: propagate clock lookup errors
+
+devm_clk_bulk_get_all() may return -EPROBE_DEFER while the USB2 PHY
+clock provider is still probing. Converting every non-positive return
+value to -ENODEV prevents the USBDP PHY from being retried and leaves
+its DWC3 consumer permanently deferred.
+
+Propagate clock lookup errors and handle an empty clock list
+separately so the driver core can retry the probe.
+
+Signed-off-by: G98 LEDE maintainers <lede@bdy-g98.local>
+---
+ drivers/phy/rockchip/phy-rockchip-usbdp.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+--- a/drivers/phy/rockchip/phy-rockchip-usbdp.c
++++ b/drivers/phy/rockchip/phy-rockchip-usbdp.c
+@@ -427,8 +427,11 @@ static int rk_udphy_clk_init(struct rk_u
+ 	int i;
+ 
+ 	udphy->num_clks = devm_clk_bulk_get_all(dev, &udphy->clks);
+-	if (udphy->num_clks < 1)
+-		return -ENODEV;
++	if (udphy->num_clks < 0)
++		return dev_err_probe(dev, udphy->num_clks,
++				     "failed to get clocks\n");
++	if (!udphy->num_clks)
++		return dev_err_probe(dev, -ENODEV, "no clocks found\n");
+ 
+ 	/* used for configure phy reference clock frequency */
+ 	for (i = 0; i < udphy->num_clks; i++) {
