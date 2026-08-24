@@ -51,6 +51,19 @@ endef
 
 $(eval $(call KernelPackage,drm-rockchip))
 
+define KernelPackage/drm-panthor
+  SUBMENU:=$(VIDEO_MENU)
+  TITLE:=ARM Mali CSF GPU support
+  DEPENDS:=@TARGET_rockchip @LINUX_6_18 \
+	+mali-csf-firmware +kmod-drm-exec +kmod-drm-gpuvm \
+	+kmod-drm-sched +kmod-drm-shmem-helper
+  KCONFIG:=CONFIG_DRM_PANTHOR
+  FILES:=$(LINUX_DIR)/drivers/gpu/drm/panthor/panthor.ko
+  AUTOLOAD:=$(call AutoProbe,panthor)
+endef
+
+$(eval $(call KernelPackage,drm-panthor))
+
 define KernelPackage/drm-rocket
   SUBMENU:=$(VIDEO_MENU)
   TITLE:=Rockchip NPU support
