@@ -1,0 +1,455 @@
+From da20e82818904557fcd926c483ba3d1eaa2499aa Mon Sep 17 00:00:00 2001
+From: G98 LEDE maintainers <lede@bdy-g98.local>
+Date: Mon, 24 Aug 2026 21:39:35 +0800
+Subject: [PATCH] rockchip: rk3588: add BDY G98 support
+
+Add the BDY G98 target, device trees and board-specific storage routing.
+
+Enable UART, SARADC recovery, RockUSB, PCIe/NVMe, USB and MMC support.
+
+Derive boot targets from the detected SPI-NOR or eMMC boot source.
+
+Signed-off-by: G98 LEDE maintainers <lede@bdy-g98.local>
+---
+ arch/arm/dts/Makefile                   |   2 +
+ arch/arm/dts/rk3588-bdy-g98-u-boot.dtsi |  15 ++++
+ arch/arm/dts/rk3588-bdy-g98.dts         | 100 +++++++++++++++++++++++
+ arch/arm/mach-rockchip/rk3588/Kconfig   |   9 +++
+ board/bdy/g98/Kconfig                   |  12 +++
+ board/bdy/g98/MAINTAINERS               |   7 ++
+ board/bdy/g98/Makefile                  |   3 +
+ board/bdy/g98/g98.c                     |  83 +++++++++++++++++++
+ configs/bdy-g98-rk3588_defconfig        | 102 ++++++++++++++++++++++++
+ include/configs/bdy_g98.h               |  13 +++
+ 10 files changed, 346 insertions(+)
+ create mode 100644 arch/arm/dts/rk3588-bdy-g98-u-boot.dtsi
+ create mode 100644 arch/arm/dts/rk3588-bdy-g98.dts
+ create mode 100644 board/bdy/g98/Kconfig
+ create mode 100644 board/bdy/g98/MAINTAINERS
+ create mode 100644 board/bdy/g98/Makefile
+ create mode 100644 board/bdy/g98/g98.c
+ create mode 100644 configs/bdy-g98-rk3588_defconfig
+ create mode 100644 include/configs/bdy_g98.h
+
+diff --git a/arch/arm/dts/Makefile b/arch/arm/dts/Makefile
+index 2b65cd91..96a6548d 100644
+--- a/arch/arm/dts/Makefile
++++ b/arch/arm/dts/Makefile
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: GPL-2.0+
+ 
++dtb-$(CONFIG_TARGET_BDY_G98_RK3588) += rk3588-bdy-g98.dtb
++
+ dtb-$(CONFIG_TARGET_SMARTWEB) += at91sam9260-smartweb.dtb
+ dtb-$(CONFIG_TARGET_TAURUS) += at91sam9g20-taurus.dtb
+ dtb-$(CONFIG_TARGET_CORVUS) += at91sam9g45-corvus.dtb
+diff --git a/arch/arm/dts/rk3588-bdy-g98-u-boot.dtsi b/arch/arm/dts/rk3588-bdy-g98-u-boot.dtsi
+new file mode 100644
+index 00000000..e21f2237
+--- /dev/null
++++ b/arch/arm/dts/rk3588-bdy-g98-u-boot.dtsi
+@@ -0,0 +1,15 @@
++// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++
++#include "rk3588-u-boot.dtsi"
++
++&sfc {
++	status = "okay";
++
++	flash@0 {
++		compatible = "jedec,spi-nor";
++		reg = <0>;
++		spi-max-frequency = <100000000>;
++		bootph-pre-ram;
++		bootph-some-ram;
++	};
++};
+diff --git a/arch/arm/dts/rk3588-bdy-g98.dts b/arch/arm/dts/rk3588-bdy-g98.dts
+new file mode 100644
+index 00000000..d542e360
+--- /dev/null
++++ b/arch/arm/dts/rk3588-bdy-g98.dts
+@@ -0,0 +1,100 @@
++// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++/*
++ * Minimal BDY G98 boot DT. Linux owns full board peripheral setup.
++ */
++
++/dts-v1/;
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/pinctrl/rockchip.h>
++#include "rk3588.dtsi"
++#include "rk3588-bdy-g98-u-boot.dtsi"
++
++/ {
++	model = "BDY G98";
++	compatible = "bdy,g98", "rockchip,rk3588";
++
++	aliases {
++		mmc0 = &sdhci;
++		serial2 = &uart2;
++	};
++
++	chosen {
++		stdout-path = "serial2:1500000n8";
++	};
++
++	vcc3v3_pcie30: regulator-vcc3v3-pcie30 {
++		compatible = "regulator-fixed";
++		regulator-name = "vcc3v3_pcie30";
++		regulator-always-on;
++		regulator-boot-on;
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++		enable-active-high;
++		gpio = <&gpio3 RK_PD5 GPIO_ACTIVE_HIGH>;
++		startup-delay-us = <7500>;
++	};
++
++	vcc5v0_otg: regulator-vcc5v0-otg {
++		compatible = "regulator-fixed";
++		regulator-name = "vcc5v0_otg";
++		regulator-always-on;
++		regulator-boot-on;
++		regulator-min-microvolt = <5000000>;
++		regulator-max-microvolt = <5000000>;
++		enable-active-high;
++		gpio = <&gpio4 RK_PA7 GPIO_ACTIVE_HIGH>;
++	};
++};
++
++&pcie30phy {
++	data-lanes = <1 1 2 2>;
++	status = "okay";
++};
++
++&pcie3x4 {
++	num-lanes = <2>;
++	reset-gpios = <&gpio4 RK_PB6 GPIO_ACTIVE_HIGH>;
++	vpcie3v3-supply = <&vcc3v3_pcie30>;
++	status = "okay";
++};
++
++&saradc {
++	status = "okay";
++};
++
++&sdhci {
++	/delete-property/ pinctrl-names;
++	/delete-property/ pinctrl-0;
++	bus-width = <8>;
++	cap-mmc-highspeed;
++	mmc-hs200-1_8v;
++	no-sd;
++	no-sdio;
++	non-removable;
++	status = "okay";
++};
++
++&u2phy0 {
++	status = "okay";
++};
++
++&u2phy0_otg {
++	phy-supply = <&vcc5v0_otg>;
++	status = "okay";
++};
++
++&uart2 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&uart2m0_xfer>;
++	status = "okay";
++};
++
++&usbdp_phy0 {
++	status = "okay";
++};
++
++&usb_host0_xhci {
++	dr_mode = "host";
++	status = "okay";
++};
+diff --git a/arch/arm/mach-rockchip/rk3588/Kconfig b/arch/arm/mach-rockchip/rk3588/Kconfig
+index 675f13ab..2b887441 100644
+--- a/arch/arm/mach-rockchip/rk3588/Kconfig
++++ b/arch/arm/mach-rockchip/rk3588/Kconfig
+@@ -5,6 +5,14 @@ config TARGET_EVB_RK3588
+ 	help
+ 	  RK3588 EVB is a evaluation board for Rockchp RK3588.
+ 
++config TARGET_BDY_G98_RK3588
++	bool "BDY G98"
++	help
++	  The BDY G98 is an RK3588 network appliance with SPI-NOR and eMMC
++	  boot variants. It provides NVMe and USB storage together with two
++	  Motorcomm YT9215 switches. U-Boot selects the storage route and
++	  boot targets according to the detected boot source.
++
+ config TARGET_CM3588_NAS_RK3588
+ 	bool "FriendlyElec CM3588 NAS"
+ 	help
+@@ -419,6 +427,7 @@ config SYS_SOC
+ 	default "rk3588"
+ 
+ source "board/armsom/sige7-rk3588/Kconfig"
++source "board/bdy/g98/Kconfig"
+ source "board/coolpi/genbook_cm5_rk3588/Kconfig"
+ source "board/edgeble/neural-compute-module-6/Kconfig"
+ source "board/friendlyelec/cm3588-nas-rk3588/Kconfig"
+diff --git a/board/bdy/g98/Kconfig b/board/bdy/g98/Kconfig
+new file mode 100644
+index 00000000..8087f518
+--- /dev/null
++++ b/board/bdy/g98/Kconfig
+@@ -0,0 +1,12 @@
++if TARGET_BDY_G98_RK3588
++
++config SYS_BOARD
++	default "g98"
++
++config SYS_VENDOR
++	default "bdy"
++
++config SYS_CONFIG_NAME
++	default "bdy_g98"
++
++endif
+diff --git a/board/bdy/g98/MAINTAINERS b/board/bdy/g98/MAINTAINERS
+new file mode 100644
+index 00000000..32d6dd94
+--- /dev/null
++++ b/board/bdy/g98/MAINTAINERS
+@@ -0,0 +1,7 @@
++BDY-G98-RK3588
++M:	G98 LEDE maintainers <lede@bdy-g98.local>
++S:	Maintained
++F:	arch/arm/dts/rk3588-bdy-g98*
++F:	board/bdy/g98/
++F:	configs/bdy-g98-rk3588_defconfig
++F:	include/configs/bdy_g98.h
+diff --git a/board/bdy/g98/Makefile b/board/bdy/g98/Makefile
+new file mode 100644
+index 00000000..8f4831c7
+--- /dev/null
++++ b/board/bdy/g98/Makefile
+@@ -0,0 +1,3 @@
++# SPDX-License-Identifier: GPL-2.0+
++
++obj-y += g98.o
+diff --git a/board/bdy/g98/g98.c b/board/bdy/g98/g98.c
+new file mode 100644
+index 00000000..ef747d6c
+--- /dev/null
++++ b/board/bdy/g98/g98.c
+@@ -0,0 +1,83 @@
++// SPDX-License-Identifier: GPL-2.0+
++
++#include <dm/ofnode.h>
++#include <env.h>
++#include <stdio.h>
++#include <string.h>
++#include <asm/io.h>
++
++#define RK3588_BUS_IOC_GPIO2A_IOMUX_SEL_L	0xfd5f8040
++#define RK3588_BUS_IOC_GPIO2B_IOMUX_SEL_L	0xfd5f8048
++#define RK3588_BUS_IOC_GPIO2D_IOMUX_SEL_L	0xfd5f8058
++#define RK3588_BUS_IOC_GPIO2D_IOMUX_SEL_H	0xfd5f805c
++#define RK3588_BUS_IOC_GPIO3A_IOMUX_SEL_L	0xfd5f8060
++
++#define G98_GPIO2A_SFC_M0			0x000f0002
++#define G98_GPIO2D_SFC_M0			0xffff2222
++#define G98_GPIO2D_SFC_M0_CS0			0x0f000200
++#define G98_GPIO2A_EMMC				0xffff1111
++#define G98_GPIO2D_EMMC				0xffff1111
++#define G98_GPIO2D_EMMC_RST			0xffff1111
++#define G98_GPIO2B_SFC_M1_STATE			0x3033
++#define G98_GPIO2B_SFC_M1_STATE_MASK		0xf0ff
++#define G98_GPIO2D_SFC_M0_STATE			0x2222
++#define G98_GPIO2D_EMMC_STATE			0x1111
++#define G98_GPIO3A_SFC_M2_STATE			0x5555
++#define G98_IOMUX_STATE_MASK			0xffff
++
++static void g98_select_storage_route(void)
++{
++	const char *boot_source;
++
++	boot_source = ofnode_read_chosen_string("bootsource");
++	if (!boot_source)
++		return;
++
++	if (strstr(boot_source, "/spi@fe2b0000/flash@0")) {
++		/* SFC M0 uses GPIO2_A0, GPIO2_D0-D3 and GPIO2_D6. */
++		writel(G98_GPIO2A_SFC_M0, RK3588_BUS_IOC_GPIO2A_IOMUX_SEL_L);
++		writel(G98_GPIO2D_SFC_M0, RK3588_BUS_IOC_GPIO2D_IOMUX_SEL_L);
++		writel(G98_GPIO2D_SFC_M0_CS0,
++		       RK3588_BUS_IOC_GPIO2D_IOMUX_SEL_H);
++		env_set("boot_targets", "nvme usb");
++	} else if (strstr(boot_source, "/mmc@fe2e0000")) {
++		/* eMMC uses CMD, CLK, DATA, STROBE and RST on GPIO2_A/D. */
++		writel(G98_GPIO2A_EMMC, RK3588_BUS_IOC_GPIO2A_IOMUX_SEL_L);
++		writel(G98_GPIO2D_EMMC, RK3588_BUS_IOC_GPIO2D_IOMUX_SEL_L);
++		writel(G98_GPIO2D_EMMC_RST,
++		       RK3588_BUS_IOC_GPIO2D_IOMUX_SEL_H);
++		env_set("boot_targets", "mmc0 nvme usb");
++	}
++}
++
++static void g98_report_storage_route(void)
++{
++	u32 gpio2a, gpio2b, gpio2d, gpio3a;
++	const char *route = "unknown";
++
++	gpio2a = readl(RK3588_BUS_IOC_GPIO2A_IOMUX_SEL_L);
++	gpio2b = readl(RK3588_BUS_IOC_GPIO2B_IOMUX_SEL_L);
++	gpio2d = readl(RK3588_BUS_IOC_GPIO2D_IOMUX_SEL_L);
++	gpio3a = readl(RK3588_BUS_IOC_GPIO3A_IOMUX_SEL_L);
++
++	if ((gpio2d & G98_IOMUX_STATE_MASK) == G98_GPIO2D_SFC_M0_STATE)
++		route = "SFC M0";
++	else if ((gpio2b & G98_GPIO2B_SFC_M1_STATE_MASK) ==
++		 G98_GPIO2B_SFC_M1_STATE)
++		route = "SFC M1";
++	else if ((gpio3a & G98_IOMUX_STATE_MASK) == G98_GPIO3A_SFC_M2_STATE)
++		route = "SFC M2";
++	else if ((gpio2d & G98_IOMUX_STATE_MASK) == G98_GPIO2D_EMMC_STATE)
++		route = "eMMC";
++
++	printf("G98 storage route: %s (2A=%08x 2B=%08x 2D=%08x 3A=%08x)\n",
++	       route, gpio2a, gpio2b, gpio2d, gpio3a);
++}
++
++int rk_board_late_init(void)
++{
++	g98_select_storage_route();
++	g98_report_storage_route();
++
++	return 0;
++}
+diff --git a/configs/bdy-g98-rk3588_defconfig b/configs/bdy-g98-rk3588_defconfig
+new file mode 100644
+index 00000000..21d9459e
+--- /dev/null
++++ b/configs/bdy-g98-rk3588_defconfig
+@@ -0,0 +1,102 @@
++CONFIG_ARM=y
++CONFIG_SKIP_LOWLEVEL_INIT=y
++CONFIG_SYS_HAS_NONCACHED_MEMORY=y
++CONFIG_COUNTER_FREQUENCY=24000000
++CONFIG_ARCH_ROCKCHIP=y
++CONFIG_SF_DEFAULT_SPEED=24000000
++CONFIG_SF_DEFAULT_MODE=0x2000
++CONFIG_DEFAULT_DEVICE_TREE="rk3588-bdy-g98"
++CONFIG_ROCKCHIP_RK3588=y
++CONFIG_ROCKCHIP_SPI_IMAGE=y
++CONFIG_SPL_SERIAL=y
++CONFIG_TARGET_BDY_G98_RK3588=y
++CONFIG_SYS_LOAD_ADDR=0xc00800
++CONFIG_SF_DEFAULT_BUS=5
++CONFIG_DEBUG_UART_BASE=0xFEB50000
++CONFIG_DEBUG_UART_CLOCK=24000000
++CONFIG_SPL_SPI_FLASH_SUPPORT=y
++CONFIG_SPL_SPI=y
++CONFIG_PCI=y
++CONFIG_DEBUG_UART=y
++CONFIG_FIT=y
++CONFIG_FIT_VERBOSE=y
++CONFIG_SPL_FIT_SIGNATURE=y
++CONFIG_SPL_LOAD_FIT=y
++CONFIG_LEGACY_IMAGE_FORMAT=y
++CONFIG_DEFAULT_FDT_FILE="rk3588-bdy-g98.dtb"
++# CONFIG_DISPLAY_CPUINFO is not set
++CONFIG_DISPLAY_BOARDINFO_LATE=y
++CONFIG_SPL_MAX_SIZE=0x40000
++# CONFIG_SPL_RAW_IMAGE_SUPPORT is not set
++CONFIG_SPL_SPI_LOAD=y
++CONFIG_SYS_SPI_U_BOOT_OFFS=0x60000
++CONFIG_SPL_ATF=y
++CONFIG_CMD_GPIO=y
++CONFIG_CMD_GPT=y
++CONFIG_CMD_I2C=y
++CONFIG_CMD_MMC=y
++CONFIG_CMD_PCI=y
++CONFIG_CMD_USB=y
++CONFIG_CMD_ROCKUSB=y
++CONFIG_CMD_USB_MASS_STORAGE=y
++# CONFIG_CMD_SETEXPR is not set
++CONFIG_CMD_REGULATOR=y
++# CONFIG_SPL_DOS_PARTITION is not set
++CONFIG_SPL_OF_CONTROL=y
++CONFIG_OF_LIVE=y
++# CONFIG_OF_UPSTREAM is not set
++CONFIG_OF_SPL_REMOVE_PROPS="clock-names interrupt-parent assigned-clocks assigned-clock-rates assigned-clock-parents"
++CONFIG_SPL_DM_SEQ_ALIAS=y
++CONFIG_SPL_SYSCON=y
++CONFIG_AHCI=y
++CONFIG_AHCI_PCI=y
++CONFIG_DWC_AHCI=y
++CONFIG_SPL_CLK=y
++# CONFIG_USB_FUNCTION_FASTBOOT is not set
++CONFIG_ROCKCHIP_GPIO=y
++CONFIG_SYS_I2C_ROCKCHIP=y
++CONFIG_MISC=y
++CONFIG_SUPPORT_EMMC_RPMB=y
++CONFIG_MMC_DW=y
++CONFIG_MMC_DW_ROCKCHIP=y
++CONFIG_MMC_SDHCI=y
++CONFIG_MMC_SDHCI_SDMA=y
++CONFIG_MMC_SDHCI_ROCKCHIP=y
++CONFIG_SPI_FLASH_SFDP_SUPPORT=y
++CONFIG_SPI_FLASH_WINBOND=y
++CONFIG_RTL8169=y
++CONFIG_PHYLIB=y
++CONFIG_NVME_PCI=y
++CONFIG_PCIE_DW_ROCKCHIP=y
++CONFIG_PHY_ROCKCHIP_INNO_USB2=y
++CONFIG_PHY_ROCKCHIP_NANENG_COMBOPHY=y
++CONFIG_PHY_ROCKCHIP_USBDP=y
++CONFIG_SPL_PINCTRL=y
++CONFIG_SPL_RAM=y
++CONFIG_SCSI=y
++CONFIG_BAUDRATE=1500000
++CONFIG_DEBUG_UART_SHIFT=2
++CONFIG_SYS_NS16550_MEM32=y
++CONFIG_ROCKCHIP_SFC=y
++CONFIG_SYSRESET=y
++CONFIG_USB=y
++CONFIG_USB_XHCI_HCD=y
++CONFIG_USB_EHCI_HCD=y
++CONFIG_USB_EHCI_GENERIC=y
++CONFIG_USB_OHCI_HCD=y
++CONFIG_USB_OHCI_GENERIC=y
++CONFIG_USB_DWC3=y
++CONFIG_USB_DWC3_GENERIC=y
++CONFIG_SPL_USB_DWC3_GENERIC=y
++CONFIG_USB_HOST_ETHER=y
++CONFIG_USB_ETHER_ASIX=y
++CONFIG_USB_ETHER_ASIX88179=y
++CONFIG_USB_ETHER_LAN75XX=y
++CONFIG_USB_ETHER_LAN78XX=y
++CONFIG_USB_ETHER_MCS7830=y
++CONFIG_USB_ETHER_RTL8152=y
++CONFIG_USB_ETHER_SMSC95XX=y
++CONFIG_USB_GADGET=y
++CONFIG_USB_GADGET_DOWNLOAD=y
++CONFIG_USB_FUNCTION_ROCKUSB=y
++CONFIG_ERRNO_STR=y
+diff --git a/include/configs/bdy_g98.h b/include/configs/bdy_g98.h
+new file mode 100644
+index 00000000..d8154a36
+--- /dev/null
++++ b/include/configs/bdy_g98.h
+@@ -0,0 +1,13 @@
++/* SPDX-License-Identifier: GPL-2.0+ */
++#ifndef __BDY_G98_H
++#define __BDY_G98_H
++
++#define ROCKCHIP_DEVICE_SETTINGS \
++	"stdout=serial\0" \
++	"stderr=serial\0"
++
++#define BOOT_TARGETS "nvme usb"
++
++#include <configs/rk3588_common.h>
++
++#endif
