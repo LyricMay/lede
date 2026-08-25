@@ -8,14 +8,14 @@ configuring RGMII so the switch-side MAC-to-MAC link is brought up
 consistently.
 
 ---
- drivers/net/dsa/yt921x.c | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
+ drivers/net/dsa/yt921x.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
 
 diff --git a/drivers/net/dsa/yt921x.c b/drivers/net/dsa/yt921x.c
-index 10c3b82..9999999 100644
+index 98520fc..9999999 100644
 --- a/drivers/net/dsa/yt921x.c
 +++ b/drivers/net/dsa/yt921x.c
-@@ -4440,7 +4440,7 @@ static int yt921x_port_config(struct yt921x_priv *priv, int port,
+@@ -4440,7 +4440,8 @@ static int yt921x_port_config(struct yt921x_priv *priv, int port,
 		if (res)
 			return res;
  
@@ -25,7 +25,7 @@ index 10c3b82..9999999 100644
 		if (interface == PHY_INTERFACE_MODE_RGMII_ID ||
 		    interface == PHY_INTERFACE_MODE_RGMII_TXID)
 			ctrl |= YT921X_XMII_RGMII_TX_DELAY_2NS;
-@@ -4449,7 +4449,7 @@ static int yt921x_port_config(struct yt921x_priv *priv, int port,
+@@ -4449,7 +4450,7 @@ static int yt921x_port_config(struct yt921x_priv *priv, int port,
 			/* 13 * 150ps = 1.95ns, closest to the standard 2ns */
 			ctrl |= YT921X_XMII_RGMII_RX_DELAY_150PS(13);
  
