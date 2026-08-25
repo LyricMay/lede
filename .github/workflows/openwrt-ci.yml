@@ -67,7 +67,10 @@ jobs:
           ./scripts/feeds install -a
 
       - name: Generate configuration file
-        run: make defconfig
+        run: |
+          cp config/g98.config .config
+          make defconfig
+          grep -q 'CONFIG_TARGET_rockchip_armv8_DEVICE_bdy_g98=y' .config
 
       - name: Download packages
         run: make download -j16
@@ -116,6 +119,7 @@ jobs:
           find ./bin/targets/rockchip/armv8 -maxdepth 1 -type f \
             \( -name '*bdy_g98*' -o -name 'sha256sums' \) \
             -exec cp -v {} ./release/ \;
+          test -n "$(find ./release -maxdepth 1 -type f -name '*bdy_g98*' -print -quit)"
 
       - name: Publish G98 release
         uses: softprops/action-gh-release@v2
