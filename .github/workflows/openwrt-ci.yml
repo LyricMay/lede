@@ -66,8 +66,15 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Generate configuration file
-        run: make defconfig
+      - name: Generate BDY G98 configuration
+        run: |
+          cat > .config <<'EOF'
+          CONFIG_TARGET_rockchip=y
+          CONFIG_TARGET_rockchip_armv8=y
+          CONFIG_TARGET_DEVICE_rockchip_armv8_DEVICE_bdy_g98=y
+          EOF
+          make defconfig
+          grep -E '^CONFIG_TARGET_(rockchip|DEVICE_rockchip)' .config
 
       - name: Download packages
         run: make download -j16
