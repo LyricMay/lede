@@ -1,0 +1,38 @@
+From: LyricMay LEDE maintainers <lede@lyricmay.local>
+Date: Mon, 25 Aug 2026 21:30:00 +0800
+Subject: [PATCH] net: dsa: yt921x: force RGMII CPU-port link
+
+The BDY G98 connects each YT9215 CPU port directly to an RK3588 GMAC
+through a fixed RGMII link. Set the switch XMII force-link bit while
+configuring RGMII so the switch-side MAC-to-MAC link is brought up
+consistently.
+
+---
+ drivers/net/dsa/yt921x.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/dsa/yt921x.c b/drivers/net/dsa/yt921x.c
+index 10c3b82..9999999 100644
+--- a/drivers/net/dsa/yt921x.c
++++ b/drivers/net/dsa/yt921x.c
+@@ -4440,7 +4440,7 @@ static int yt921x_port_config(struct yt921x_priv *priv, int port,
+		if (res)
+			return res;
+ 
+-		ctrl = YT921X_XMII_MODE_RGMII | YT921X_XMII_EN;
++		ctrl = YT921X_XMII_MODE_RGMII | YT921X_XMII_EN |
++		       YT921X_XMII_LINK;
+		if (interface == PHY_INTERFACE_MODE_RGMII_ID ||
+		    interface == PHY_INTERFACE_MODE_RGMII_TXID)
+			ctrl |= YT921X_XMII_RGMII_TX_DELAY_2NS;
+@@ -4449,7 +4449,7 @@ static int yt921x_port_config(struct yt921x_priv *priv, int port,
+			/* 13 * 150ps = 1.95ns, closest to the standard 2ns */
+			ctrl |= YT921X_XMII_RGMII_RX_DELAY_150PS(13);
+ 
+-		mask = YT921X_XMII_MODE_M | YT921X_XMII_EN |
++		mask = YT921X_XMII_MODE_M | YT921X_XMII_EN | YT921X_XMII_LINK |
+		       YT921X_XMII_RGMII_TX_DELAY_2NS |
+		       YT921X_XMII_RGMII_TX_DELAY_150PS_M |
+		       YT921X_XMII_RGMII_RX_DELAY_150PS_M;
+-- 
+2.43.0
