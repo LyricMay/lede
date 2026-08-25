@@ -16,7 +16,7 @@ on:
     - cron: 0 20 * * *
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
 
@@ -109,3 +109,19 @@ jobs:
         with:
           name: OpenWrt_firmware
           path: ./bin/targets/
+
+      - name: Prepare G98 release files
+        run: |
+          mkdir -p ./release
+          find ./bin/targets/rockchip/armv8 -maxdepth 1 -type f \
+            \( -name '*bdy_g98*' -o -name 'sha256sums' \) \
+            -exec cp -v {} ./release/ \;
+
+      - name: Publish G98 release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: g98-rk3588-build-${{ github.run_number }}
+          name: BDY G98 build ${{ github.run_number }}
+          prerelease: true
+          generate_release_notes: true
+          files: ./release/*
